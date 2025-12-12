@@ -23,7 +23,8 @@ namespace hello_world_api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddMvc();
+            // FIX: Disable endpoint routing (required for ASP.NET Core 2.0 on newer runtimes)
+            services.AddMvc(options => options.EnableEndpointRouting = false);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -34,6 +35,7 @@ namespace hello_world_api
                 app.UseDeveloperExceptionPage();
             }
 
+            // ASP.NET Core 2.0 routing
             app.UseMvc();
         }
     }
