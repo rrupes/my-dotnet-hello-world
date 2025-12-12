@@ -1,9 +1,16 @@
 pipeline {
     agent any 
 
+parameters {
+    choice(name: 'ENV', choices: ['UAT', 'PROD'], description: 'Select environment')
+
+}
+
+
     environment {
-        IMAGE = "net_image:${BUILD_NUMBER}"
         DOCKER_IMAGE = "rupesh9136/net_image:${BUILD_NUMBER}"
+         PROD_HOST = "ec2-user@cn.tg.com"
+         AWS_KEY = "awskey"
     }
 
     stages {
@@ -39,20 +46,48 @@ pipeline {
             }
         }
 
-        stage('Deploy on Same EC2') {
+ stage('Deploy - UAT / PROD') {
             steps {
-                sh """
-                    docker rm -f netapp || true
-                    docker pull ${DOCKER_IMAGE}
-                    docker run -d --name netapp -p 8888:80 ${DOCKER_IMAGE}
-                """
+                script {
+
+                    if (params.ENV == "UAT") {
+                        echo "Deploying to UAT (local Jenkins EC2)..."
+                        
+                        sh """
+                            docker rm -f netapp || true
+                            docker pull ${DOCKER_IMAGE}
+                            docker run -d --name netapp -p 8888:80 ${DOCKER_IMAGE}
+                        """
+                    }
+
+                    if (params.ENV == "PROD") {
+                        echo "Deploying to PROD EC2 over SSH..."
+
+                        withCredentials([sshUserPrivateKey(
+                            credentialsId: AWS_KEY,
+                            keyFileVariable: 'SSH_KEY'
+                        )]) {
+                            sh """
+                                ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" ${PROD_HOST} '
+                                    docker rm -f netapp || true
+                                    docker pull ${DOCKER_IMAGE}
+                                    docker run -d --name netapp -p 8811:80 ${DOCKER_IMAGE}
+                                '
+                            """
+                        }
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo "Deployment Successful! App running on port 8888"
+            echo "Deployment to ${params.ENV} completed successfully!"
+        }
+        failure {
+            echo "Deployment failed. Check logs."
         }
     }
 }
+
